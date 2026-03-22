@@ -1,0 +1,15 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(npm create:*)",
+      "Bash(npm install:*)",
+      "Bash(find E:/691_Ai_app/backend -not -path */venv* -not -path */__pycache__* -not -name *.pyc -type f)",
+      "Bash(grep -E \"\\(app/|\\\\.txt|\\\\.md|\\\\.py$|\\\\.ipynb\\)\")",
+      "Bash(find /e/691_Ai_app -path *node_modules -prune -o -path *venv -prune -o -type f \\\\\\(-name *.tsx -o -name *.ts -o -name *.jsx -o -name *.js \\\\\\) -print)",
+      "Bash(npm --version)",
+      "Bash(uipro init:*)",
+      "Bash(claude install-skill:*)",
+      "Bash(npx -y @lobehub/market-cli skills install secondsky-claude-skills-motion --agent claude-code)"
+    ]
+  }
+}
