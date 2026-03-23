@@ -24,9 +24,13 @@ _collection = None
 def _get_local_model():
     global _local_model
     if _local_model is None:
-        from sentence_transformers import SentenceTransformer
-        print("[embedder] Loading BGE model locally (no Colab)...")
-        _local_model = SentenceTransformer(settings.EMBEDDING_MODEL)
+        try:
+            from sentence_transformers import SentenceTransformer
+            print("[embedder] Loading BGE model locally (no Colab)...")
+            _local_model = SentenceTransformer(settings.EMBEDDING_MODEL)
+        except ImportError:
+            print("[embedder] sentence-transformers not installed, Colab required for embeddings.")
+            return None
     return _local_model
 
 
@@ -57,6 +61,8 @@ async def _get_embeddings(texts: list[str]) -> list[list[float]]:
         return colab_embeddings
 
     model = _get_local_model()
+    if model is None:
+        raise RuntimeError("Colab GPU server is not available and sentence-transformers is not installed. Please start the Colab server.")
     return model.encode(texts, normalize_embeddings=True).tolist()
 
 
