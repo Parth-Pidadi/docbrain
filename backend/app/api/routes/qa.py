@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -7,6 +9,7 @@ from app.models.schemas import QARequest, QAResponse
 from app.services import qa as qa_service
 from app.services.auth import get_current_user
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -38,5 +41,23 @@ async def ask_question(
         doc_ids = [r.id for r in user_docs]
 
     history = [{"role": m.role, "content": m.content} for m in (request.history or [])]
-    result = await qa_service.answer(request.question, doc_ids, user_id=str(current_user.id), db=db, history=history)
-    return result
+
+    try:
+        result = await qa_service.answer(
+            request.question,
+            doc_ids,
+            user_id=str(current_user.id),
+            db=db,
+            history=history,
+        )
+        return result
+    except Exception as exc:
+        logger.exception("QA answer failed: %s", exc)
+        # Surface a clean error to the frontend rather than a raw 500
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                f"The AI service returned an error: {type(exc).__name__}. "
+                "This is usually a temporary Groq API issue — please try again in a few seconds."
+            ),
+        )

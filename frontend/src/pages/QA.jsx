@@ -53,6 +53,13 @@ export default function QA() {
   const [scopeOpen, setScopeOpen] = useState(false);
   const bottomRef = useRef(null);
 
+  // Detect duplicate filenames (same file uploaded more than once)
+  const filenameCounts = docs.reduce((acc, d) => {
+    acc[d.filename] = (acc[d.filename] || 0) + 1;
+    return acc;
+  }, {});
+  const hasDuplicates = Object.values(filenameCounts).some((c) => c > 1);
+
   useEffect(() => {
     getDocuments()
       .then(({ data }) => setDocs(data))
@@ -95,8 +102,9 @@ export default function QA() {
       const { data } = await askQuestion(q, doc_ids, history);
       setMessages((m) => [...m, { role: 'ai', content: data.answer, sources: data.sources }]);
     } catch (err) {
-      toast.error('Failed to get answer');
-      setMessages((m) => [...m, { role: 'ai', content: 'Something went wrong. Please try again.' }]);
+      const detail = err.response?.data?.detail || 'Failed to get answer. Please try again.';
+      toast.error(detail, { duration: 5000 });
+      setMessages((m) => [...m, { role: 'ai', content: `⚠️ ${detail}` }]);
     } finally {
       setLoading(false);
     }
@@ -152,21 +160,32 @@ export default function QA() {
                   {/* Divider */}
                   {docs.length > 0 && <div className="scope-divider" />}
 
+                  {/* Duplicate file warning */}
+                  {hasDuplicates && (
+                    <div className="scope-duplicate-warning">
+                      ⚠️ You have duplicate filenames — selecting both will count data twice.
+                    </div>
+                  )}
+
                   {/* Individual docs */}
                   {docs.map((doc) => {
                     const selected = selectedDocs.includes(doc.doc_id);
+                    const isDuplicate = filenameCounts[doc.filename] > 1;
                     return (
                       <div
                         key={doc.doc_id}
                         className={`scope-item ${selected ? 'scope-item--active' : ''} ${!doc.is_extracted ? 'scope-item--disabled' : ''}`}
                         onClick={() => doc.is_extracted && toggleDoc(doc.doc_id)}
-                        title={!doc.is_extracted ? 'Extract this document first' : ''}
+                        title={!doc.is_extracted ? 'Extract this document first' : isDuplicate ? 'Duplicate filename — may cause double-counting' : ''}
                       >
                         <div className="scope-item-icon">
                           {DOC_ICONS[doc.doc_type] || '📄'}
                         </div>
                         <div className="scope-item-info">
-                          <p className="scope-item-name">{doc.filename}</p>
+                          <p className="scope-item-name">
+                            {doc.filename}
+                            {isDuplicate && <span className="scope-dupe-badge"> ×2</span>}
+                          </p>
                           <p className="scope-item-meta">
                             {doc.doc_type
                               ? doc.doc_type.replace('_', ' ')

@@ -103,6 +103,21 @@
   background: var(--bg-4); border-radius: 2px;
   padding: 2px 5px; font-family: var(--font-mono);
 }
+.scope-dupe-badge {
+  font-size: 0.6rem; color: var(--warning, #d97706);
+  background: color-mix(in srgb, var(--warning, #d97706) 12%, transparent);
+  border-radius: 3px; padding: 1px 4px;
+  font-family: var(--font-mono); font-weight: 700;
+  margin-left: 4px; vertical-align: middle;
+}
+.scope-duplicate-warning {
+  font-size: 0.72rem; color: var(--warning, #d97706);
+  background: color-mix(in srgb, var(--warning, #d97706) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--warning, #d97706) 25%, transparent);
+  border-radius: var(--radius-sm, 4px);
+  padding: 8px 12px; margin: 6px 8px;
+  line-height: 1.4;
+}
 .scope-divider { height: 1px; background: var(--border-subtle); margin: 2px 0; }
 .scope-empty { padding: 16px 14px; font-size: 0.8rem; color: var(--text-3); text-align: center; }
 
