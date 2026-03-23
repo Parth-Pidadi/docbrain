@@ -1,6 +1,6 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { uploadDocument, extractDocument, getInsightsSummary, getDocuments } from '../api/client';
+import { uploadDocument, extractDocument, getInsightsSummary, getDocuments, renameDocument, deleteDocument } from '../api/client';
 import toast from 'react-hot-toast';
 import Layout from '../components/Layout';
 import './Dashboard.css';
@@ -12,8 +12,30 @@ function DocTypeIcon({ type }) {
   return <span>{icons[type] || '📄'}</span>;
 }
 
-function DocCard({ doc, onExtract }) {
+function DocCard({ doc, onExtract, onRename, onDelete }) {
   const isExtracted = !!doc.doc_type;
+  const [editing, setEditing] = useState(false);
+  const [nameVal, setNameVal] = useState(doc.filename);
+  const inputRef = useRef(null);
+
+  useEffect(() => { setNameVal(doc.filename); }, [doc.filename]);
+  useEffect(() => { if (editing) inputRef.current?.focus(); }, [editing]);
+
+  const commitRename = () => {
+    const trimmed = nameVal.trim();
+    if (trimmed && trimmed !== doc.filename) {
+      onRename(doc, trimmed);
+    } else {
+      setNameVal(doc.filename); // revert if empty or unchanged
+    }
+    setEditing(false);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') commitRename();
+    if (e.key === 'Escape') { setNameVal(doc.filename); setEditing(false); }
+  };
+
   return (
     <div className={`doc-card ${isExtracted ? 'extracted' : ''}`}>
       <div className="doc-card-top">
@@ -23,9 +45,39 @@ function DocCard({ doc, onExtract }) {
         <span className={`badge badge-${doc.doc_type || 'unknown'}`}>
           {doc.doc_type ? doc.doc_type.replace('_', ' ') : 'pending'}
         </span>
+        {/* Actions */}
+        <div className="doc-actions">
+          <button
+            className="doc-action-btn"
+            title="Rename"
+            onClick={() => setEditing(true)}
+          >✎</button>
+          <button
+            className="doc-action-btn doc-action-delete"
+            title="Delete"
+            onClick={() => onDelete(doc)}
+          >✕</button>
+        </div>
       </div>
       <div className="doc-card-body">
-        <p className="doc-filename" title={doc.filename}>{doc.filename}</p>
+        {editing ? (
+          <input
+            ref={inputRef}
+            className="doc-rename-input"
+            value={nameVal}
+            onChange={(e) => setNameVal(e.target.value)}
+            onBlur={commitRename}
+            onKeyDown={handleKeyDown}
+          />
+        ) : (
+          <p
+            className="doc-filename"
+            title={doc.filename}
+            onDoubleClick={() => setEditing(true)}
+          >
+            {doc.filename}
+          </p>
+        )}
         <p className="doc-id mono">{doc.doc_id?.slice(0, 8) || doc.id?.slice(0,8)}…</p>
       </div>
       {!isExtracted && (
@@ -109,6 +161,33 @@ export default function Dashboard() {
       toast.error(err.response?.data?.detail || 'Extraction failed');
     } finally {
       setExtractingId(null);
+    }
+  };
+
+  const handleRename = async (doc, newName) => {
+    const docId = doc.doc_id || doc.id;
+    try {
+      await renameDocument(docId, newName);
+      setDocs((prev) =>
+        prev.map((d) => (d.doc_id === docId || d.id === docId) ? { ...d, filename: newName } : d)
+      );
+      toast.success('Renamed successfully');
+    } catch {
+      toast.error('Rename failed');
+    }
+  };
+
+  const handleDelete = async (doc) => {
+    const docId = doc.doc_id || doc.id;
+    if (!window.confirm(`Delete "${doc.filename}"? This cannot be undone.`)) return;
+    try {
+      await deleteDocument(docId);
+      setDocs((prev) => prev.filter((d) => (d.doc_id || d.id) !== docId));
+      toast.success('Document deleted');
+      // Refresh summary
+      getInsightsSummary().then((r) => setSummary(r.data)).catch(() => {});
+    } catch {
+      toast.error('Delete failed');
     }
   };
 
@@ -198,7 +277,12 @@ export default function Dashboard() {
               const id = doc.doc_id || doc.id;
               return (
                 <div key={id} className={extractingId === id ? 'extracting-overlay' : ''}>
-                  <DocCard doc={doc} onExtract={handleExtract} />
+                  <DocCard
+                    doc={doc}
+                    onExtract={handleExtract}
+                    onRename={handleRename}
+                    onDelete={handleDelete}
+                  />
                 </div>
               );
             })}

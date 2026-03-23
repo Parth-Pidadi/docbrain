@@ -142,8 +142,8 @@
 }
 .doc-card.extracted { border-top-color: var(--success); }
 
-.doc-card-top { display: flex; align-items: center; justify-content: space-between; }
-.doc-icon { font-size: 1.3rem; line-height: 1; }
+.doc-card-top { display: flex; align-items: center; justify-content: space-between; gap: 6px; }
+.doc-icon { font-size: 1.3rem; line-height: 1; flex-shrink: 0; }
 .doc-card-body { flex: 1; }
 .doc-filename {
   font-size: 0.84rem;
@@ -152,6 +152,35 @@
   margin-bottom: 5px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
   font-family: var(--font-body);
+  cursor: text;
+}
+
+/* Hover-reveal action buttons */
+.doc-actions {
+  display: flex; gap: 4px; margin-left: auto; flex-shrink: 0;
+  opacity: 0; transition: opacity 0.15s;
+}
+.doc-card:hover .doc-actions { opacity: 1; }
+.doc-action-btn {
+  width: 24px; height: 24px;
+  display: flex; align-items: center; justify-content: center;
+  background: var(--bg-3); border: 1px solid var(--border-subtle);
+  border-radius: 4px; font-size: 0.75rem; cursor: pointer;
+  color: var(--text-2); transition: all 0.12s;
+  padding: 0; line-height: 1;
+}
+.doc-action-btn:hover { background: var(--bg-4); color: var(--text); }
+.doc-action-delete:hover { background: #fee2e2; border-color: #fca5a5; color: #dc2626; }
+
+/* Inline rename input */
+.doc-rename-input {
+  width: 100%; font-size: 0.84rem; font-weight: 600;
+  font-family: var(--font-body);
+  background: var(--bg-1); border: 1px solid var(--accent);
+  border-radius: 4px; padding: 2px 6px;
+  color: var(--text); outline: none;
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--accent) 20%, transparent);
+  margin-bottom: 5px;
 }
 .doc-id {
   font-size: 0.68rem;

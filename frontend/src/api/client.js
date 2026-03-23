@@ -45,6 +45,11 @@ export const uploadDocument = (file) => {
   return api.post('/api/upload/', form);
 };
 
+export const renameDocument = (docId, filename) =>
+  api.patch(`/api/upload/${docId}`, { filename });
+
+export const deleteDocument = (docId) => api.delete(`/api/upload/${docId}`);
+
 export const extractDocument = (docId) => api.post(`/api/extract/${docId}`);
 
 // ── Q&A ──

@@ -1,8 +1,10 @@
 import uuid
 import shutil
 from pathlib import Path
+from typing import Optional
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -12,6 +14,10 @@ from app.models.schemas import UploadResponse
 from app.services.auth import get_current_user
 
 router = APIRouter()
+
+
+class RenameRequest(BaseModel):
+    filename: str
 
 
 @router.get("/")
@@ -69,3 +75,68 @@ async def upload_document(
         file_type=ext,
         message="Document uploaded successfully. Call /api/extract/{doc_id} to process.",
     )
+
+
+@router.patch("/{doc_id}")
+def rename_document(
+    doc_id: str,
+    body: RenameRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Rename a document (display name only — physical file is keyed by UUID)."""
+    doc = db.query(Document).filter(
+        Document.id == doc_id,
+        Document.user_id == current_user.id,
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+
+    new_name = body.filename.strip()
+    if not new_name:
+        raise HTTPException(status_code=400, detail="Filename cannot be empty.")
+
+    doc.filename = new_name
+    db.commit()
+    return {"doc_id": doc_id, "filename": doc.filename}
+
+
+@router.delete("/{doc_id}")
+def delete_document(
+    doc_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """Delete a document: removes DB record, uploaded file, and ChromaDB vectors."""
+    doc = db.query(Document).filter(
+        Document.id == doc_id,
+        Document.user_id == current_user.id,
+    ).first()
+    if not doc:
+        raise HTTPException(status_code=404, detail="Document not found.")
+
+    # 1. Delete physical file from disk
+    upload_dir = Path(settings.UPLOAD_DIR)
+    for f in upload_dir.glob(f"{doc_id}.*"):
+        try:
+            f.unlink()
+        except Exception:
+            pass
+
+    # 2. Remove vectors from ChromaDB
+    try:
+        import chromadb
+        chroma = chromadb.PersistentClient(path=settings.CHROMA_PERSIST_DIR)
+        collection = chroma.get_or_create_collection("docbrain")
+        # Delete all chunks for this doc (chunk IDs follow pattern "{doc_id}_chunk_{n}")
+        existing = collection.get(where={"doc_id": {"$eq": doc_id}})
+        if existing and existing["ids"]:
+            collection.delete(ids=existing["ids"])
+    except Exception:
+        pass  # ChromaDB cleanup is best-effort
+
+    # 3. Remove from PostgreSQL
+    db.delete(doc)
+    db.commit()
+
+    return {"deleted": doc_id}
