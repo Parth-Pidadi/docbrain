@@ -1,3 +1,4 @@
+/* ── Layout — Noir Ledger ─────────────────────────────────────────────────── */
 .layout {
   display: flex;
   min-height: 100vh;
@@ -7,36 +8,42 @@
 .sidebar {
   width: var(--sidebar-w);
   min-height: 100vh;
-  background: var(--bg-2);
-  border-right: 1.5px solid var(--border-subtle);
+  background: #1C160E;
+  background-image: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 39px,
+    rgba(181,69,27,0.08) 39px,
+    rgba(181,69,27,0.08) 40px
+  );
   display: flex;
   flex-direction: column;
   position: fixed;
   top: 0; left: 0;
   z-index: 100;
-  padding: 24px 0;
-  box-shadow: 2px 0 12px rgba(0,0,0,0.04);
+  padding: 28px 0;
+  border-right: 1px solid rgba(181,69,27,0.2);
 }
 
 .sidebar-brand {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 0 20px 24px;
-  border-bottom: 1.5px solid var(--border-subtle);
-  margin-bottom: 14px;
+  padding: 0 22px 24px;
+  border-bottom: 1px solid rgba(248,245,240,0.08);
+  margin-bottom: 16px;
 }
 .brand-mark {
-  font-size: 1.5rem;
+  font-size: 1.4rem;
   color: var(--accent);
   line-height: 1;
 }
 .brand-name {
   font-family: var(--font-display);
-  font-size: 1.1rem;
-  font-weight: 800;
-  color: var(--text);
-  letter-spacing: -0.02em;
+  font-size: 1.2rem;
+  font-weight: 600;
+  color: #F8F5F0;
+  letter-spacing: 0.01em;
 }
 
 /* ── Nav ── */
@@ -44,42 +51,46 @@
   flex: 1;
   display: flex;
   flex-direction: column;
-  gap: 2px;
-  padding: 0 10px;
+  gap: 1px;
+  padding: 0 12px;
 }
 
 .nav-item {
   display: flex;
   align-items: center;
-  gap: 11px;
+  gap: 12px;
   padding: 10px 12px;
   border-radius: var(--radius);
-  color: var(--text-2);
-  font-size: 0.88rem;
-  font-weight: 500;
+  color: rgba(248,245,240,0.45);
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
   transition: all 0.15s;
   cursor: pointer;
+  border-left: 2px solid transparent;
+  font-family: var(--font-body);
 }
 .nav-item:hover {
-  color: var(--text);
-  background: var(--bg-3);
+  color: rgba(248,245,240,0.75);
+  background: rgba(248,245,240,0.04);
 }
 .nav-item.active {
-  color: var(--accent);
-  background: var(--accent-dim);
-  font-weight: 600;
+  color: var(--accent-lt);
+  background: rgba(181,69,27,0.12);
+  border-left-color: var(--accent);
 }
 .nav-icon {
-  font-size: 1rem;
-  width: 20px;
+  font-size: 0.95rem;
+  width: 18px;
   text-align: center;
   flex-shrink: 0;
 }
 
 /* ── Footer ── */
 .sidebar-footer {
-  padding: 14px 12px 0;
-  border-top: 1.5px solid var(--border-subtle);
+  padding: 14px 14px 0;
+  border-top: 1px solid rgba(248,245,240,0.08);
   margin-top: auto;
   display: flex;
   align-items: center;
@@ -93,40 +104,41 @@
   min-width: 0;
 }
 .user-avatar {
-  width: 32px; height: 32px;
-  border-radius: 50%;
-  background: var(--accent-dim);
-  border: 2px solid var(--accent-glow);
-  color: var(--accent);
+  width: 30px; height: 30px;
+  border-radius: 2px;
+  background: rgba(181,69,27,0.25);
+  border: 1px solid var(--accent);
+  color: var(--accent-lt);
   font-family: var(--font-display);
-  font-size: 0.8rem;
-  font-weight: 800;
+  font-size: 0.95rem;
+  font-weight: 600;
   display: flex; align-items: center; justify-content: center;
   flex-shrink: 0;
 }
 .user-info { display: flex; flex-direction: column; min-width: 0; }
 .user-name {
-  font-size: 0.82rem; font-weight: 600; color: var(--text);
+  font-size: 0.78rem; font-weight: 700; color: #F8F5F0;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: var(--font-body);
 }
 .user-email {
-  font-size: 0.72rem; color: var(--text-3);
+  font-size: 0.67rem; color: rgba(248,245,240,0.35);
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+  font-family: var(--font-mono);
 }
 .logout-btn {
   background: none; border: none;
-  color: var(--text-3); font-size: 1.1rem; cursor: pointer;
-  padding: 4px 6px; border-radius: 6px; transition: all 0.15s; flex-shrink: 0;
+  color: rgba(248,245,240,0.3); font-size: 1rem; cursor: pointer;
+  padding: 4px 6px; border-radius: 2px; transition: all 0.15s; flex-shrink: 0;
 }
-.logout-btn:hover { color: var(--danger); background: #FEF2F2; }
+.logout-btn:hover { color: #FF6B6B; background: rgba(192,57,43,0.15); }
 
 /* ── Main content ── */
 .main-content {
   margin-left: var(--sidebar-w);
   flex: 1;
-  padding: 36px 44px;
+  padding: 40px 48px;
   min-height: 100vh;
-  background: var(--bg);
 }
 
 @media (max-width: 768px) {

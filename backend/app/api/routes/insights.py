@@ -41,6 +41,81 @@ def _safe_float(value) -> Optional[float]:
         return None
 
 
+_SLOGAN_KEYWORDS = [
+    "save money", "live better", "thank you", "come again",
+    "survey", "feedback", "receipt", "have a nice", "we appreciate",
+    "visit us", "www.", ".com", "tell us", "sign up",
+]
+
+
+def _normalize_vendor(name: str, filename: str = "") -> str:
+    """Detect slogans masquerading as vendor names and fix them."""
+    import re
+    if not name:
+        return "Unknown"
+    lowered = name.lower()
+    if any(kw in lowered for kw in _SLOGAN_KEYWORDS) or len(name) > 50:
+        if filename:
+            base = filename.rsplit(".", 1)[0]
+            parts = re.split(r'[_\-\s]+', base)
+            for part in parts:
+                if len(part) > 2 and not part.isdigit() and not part.lower().startswith("screenshot"):
+                    return part.title()
+        return "Unknown"
+    return name
+
+
+def _normalize_date(date_str: str) -> str:
+    """Normalize various date formats to YYYY-MM-DD."""
+    import re
+    if not date_str:
+        return ""
+    date_str = str(date_str).strip()
+    if re.match(r'\d{4}-\d{2}', date_str):
+        return date_str
+    m = re.match(r'(\d{1,2})/(\d{1,2})/(\d{2,4})', date_str)
+    if m:
+        month, day, year = m.groups()
+        if len(year) == 2:
+            year = ('20' if int(year) < 50 else '19') + year
+        return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+    m = re.match(r'(\d{1,2})-(\d{1,2})-(\d{4})', date_str)
+    if m:
+        day, month, year = m.groups()
+        return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+    return date_str
+
+
+def _extract_amount(fields: dict) -> Optional[float]:
+    """Extract total amount handling flat fields and Donut CORD nested format."""
+    # Standard fields
+    for key in ("total_amount", "amount"):
+        val = _safe_float(fields.get(key))
+        if val is not None:
+            return val
+
+    # Donut CORD: total is an array [{total_price: "30.38", ...}]
+    cord_total = fields.get("total")
+    if isinstance(cord_total, list) and cord_total:
+        val = _safe_float(cord_total[0].get("total_price"))
+        if val is not None:
+            return val
+
+    # Plain total string
+    val = _safe_float(fields.get("total"))
+    if val is not None:
+        return val
+
+    # sub_total fallback
+    sub = fields.get("sub_total")
+    if isinstance(sub, dict):
+        val = _safe_float(sub.get("subtotal_price"))
+        if val is not None:
+            return val
+
+    return None
+
+
 # ── Endpoints ─────────────────────────────────────────────────────────────────
 
 @router.get("/summary")
@@ -80,24 +155,24 @@ def get_spending(
     for doc in docs:
         fields = doc.extracted_fields or {}
 
-        # Support both invoice and receipt field naming
-        amount_raw = fields.get("total_amount") or fields.get("total") or fields.get("amount")
-        amount = _safe_float(amount_raw)
+        amount = _extract_amount(fields)
         if amount is None:
             continue
 
-        date = (
+        raw_date = (
             fields.get("invoice_date")
             or fields.get("date")
             or fields.get("transaction_date")
             or ""
         )
-        vendor_name = (
+        date = _normalize_date(raw_date)
+        raw_vendor = (
             fields.get("vendor_name")
             or fields.get("merchant_name")
             or fields.get("vendor")
-            or "Unknown"
+            or ""
         )
+        vendor_name = _normalize_vendor(raw_vendor, doc.filename)
         currency = fields.get("currency", "USD")
 
         # Apply filters
@@ -151,16 +226,16 @@ def get_vendors(
     vendor_totals: dict = {}
     for doc in docs:
         fields = doc.extracted_fields or {}
-        vendor_name = (
+        raw_vendor = (
             fields.get("vendor_name")
             or fields.get("merchant_name")
             or fields.get("vendor")
+            or ""
         )
-        if not vendor_name:
+        vendor_name = _normalize_vendor(raw_vendor, doc.filename)
+        if not vendor_name or vendor_name == "Unknown":
             continue
-        amount = _safe_float(
-            fields.get("total_amount") or fields.get("total") or fields.get("amount")
-        )
+        amount = _extract_amount(fields)
         if amount:
             vendor_totals[vendor_name] = round(
                 vendor_totals.get(vendor_name, 0) + amount, 2

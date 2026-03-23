@@ -14,6 +14,25 @@ from app.services.auth import get_current_user
 router = APIRouter()
 
 
+@router.get("/")
+def list_documents(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_user),
+):
+    """List all documents belonging to the current user."""
+    docs = db.query(Document).filter(Document.user_id == current_user.id).order_by(Document.id).all()
+    return [
+        {
+            "doc_id": doc.id,
+            "filename": doc.filename,
+            "file_type": doc.file_type,
+            "doc_type": doc.doc_type,
+            "is_extracted": doc.extracted_fields is not None,
+        }
+        for doc in docs
+    ]
+
+
 @router.post("/", response_model=UploadResponse)
 async def upload_document(
     file: UploadFile = File(...),

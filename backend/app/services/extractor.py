@@ -28,7 +28,17 @@ merchant_name, date, total_amount, currency, items (array of {name, price}), pay
 bank_name, account_holder, account_number, statement_period_start, statement_period_end, opening_balance, closing_balance, transactions (array of {date, description, debit, credit, balance})""",
 
     DocType.contract: """Extract these fields from the contract (return valid JSON only):
-parties (array of names), contract_date, effective_date, expiry_date, contract_type, key_terms (array of strings), governing_law""",
+parties (array of names), contract_date, effective_date, expiry_date, contract_type, governing_law,
+payment_terms, termination_conditions (array of strings),
+liability_clauses (array of strings — any clauses limiting or assigning liability),
+indemnification (array of strings — who indemnifies whom),
+auto_renewal (true/false and terms if present),
+non_compete (true/false and scope if present),
+intellectual_property (who owns IP created during contract),
+penalty_clauses (array of {trigger, penalty}),
+red_flags (array of strings — unusual, risky, or missing standard protections),
+key_obligations (object with party names as keys, array of obligations as values),
+summary (2-3 sentence plain English summary of what this contract does)""",
 
     DocType.unknown: """Extract any key information from this document (return valid JSON only):
 document_summary, key_entities, key_dates, key_amounts, other_fields""",
@@ -52,7 +62,22 @@ async def extract(raw_text: str, doc_type: DocType) -> dict:
     )
 
     content = response.choices[0].message.content.strip()
+
+    # Strip markdown code fences if LLM wrapped output in ```json ... ```
+    if content.startswith("```"):
+        lines = content.split("\n")
+        lines = [l for l in lines if not l.strip().startswith("```")]
+        content = "\n".join(lines).strip()
+
     try:
         return json.loads(content)
     except json.JSONDecodeError:
+        # Try extracting JSON object from mixed content
+        import re
+        match = re.search(r'\{.*\}', content, re.DOTALL)
+        if match:
+            try:
+                return json.loads(match.group())
+            except json.JSONDecodeError:
+                pass
         return {"raw_extraction": content}

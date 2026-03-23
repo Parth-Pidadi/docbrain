@@ -31,9 +31,14 @@ class ExtractionResult(BaseModel):
     created_at: datetime = datetime.utcnow()
 
 
+class ChatMessage(BaseModel):
+    role: str   # 'user' or 'assistant'
+    content: str
+
 class QARequest(BaseModel):
     question: str
     doc_ids: Optional[List[str]] = None  # None = search all user's docs
+    history: Optional[List[ChatMessage]] = []  # conversation history
 
 
 class QASource(BaseModel):

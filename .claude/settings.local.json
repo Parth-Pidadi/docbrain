@@ -9,7 +9,11 @@
       "Bash(npm --version)",
       "Bash(uipro init:*)",
       "Bash(claude install-skill:*)",
-      "Bash(npx -y @lobehub/market-cli skills install secondsky-claude-skills-motion --agent claude-code)"
+      "Bash(npx -y @lobehub/market-cli skills install secondsky-claude-skills-motion --agent claude-code)",
+      "Bash(rm -rf /c/Users/user/.claude/skills/ui-ux-pro-max)",
+      "Bash(rm -rf /e/691_Ai_app/.claude/skills/ui-ux-pro-max)",
+      "Bash(docker exec:*)",
+      "Bash(winpty docker:*)"
     ]
   }
 }

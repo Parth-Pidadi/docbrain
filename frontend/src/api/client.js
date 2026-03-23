@@ -37,6 +37,8 @@ export const login = (email, password) => {
 export const getMe = () => api.get('/api/auth/me');
 
 // ── Documents ──
+export const getDocuments = () => api.get('/api/upload/');
+
 export const uploadDocument = (file) => {
   const form = new FormData();
   form.append('file', file);
@@ -46,8 +48,8 @@ export const uploadDocument = (file) => {
 export const extractDocument = (docId) => api.post(`/api/extract/${docId}`);
 
 // ── Q&A ──
-export const askQuestion = (question, doc_ids = null) =>
-  api.post('/api/qa/', { question, doc_ids });
+export const askQuestion = (question, doc_ids = null, history = []) =>
+  api.post('/api/qa/', { question, doc_ids, history });
 
 // ── Insights ──
 export const getInsightsSummary = () => api.get('/api/insights/summary');

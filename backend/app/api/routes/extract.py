@@ -32,11 +32,12 @@ async def extract_document(
     # Step 2: Classify document type
     doc_type = await classifier.classify(raw_text)
 
-    # Step 3: Extract structured fields — prefer Donut JSON if available
-    if donut_json:
-        extracted_fields = donut_json
-    else:
-        extracted_fields = await extractor.extract(raw_text, doc_type)
+    # Step 3: Always run Groq for clean normalized fields
+    # raw_text may be CORD JSON (from Donut) or plain text (Tesseract/pdfplumber)
+    extracted_fields = await extractor.extract(raw_text, doc_type)
+    # Keep Donut raw output for reference if available
+    if donut_json and isinstance(donut_json, dict):
+        extracted_fields["_donut_raw"] = donut_json
 
     # Step 4: Embed and store in ChromaDB (scoped to this user)
     await embedder.embed_and_store(doc_id, raw_text, user_id=str(current_user.id))

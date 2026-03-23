@@ -37,5 +37,6 @@ async def ask_question(
         ).all()
         doc_ids = [r.id for r in user_docs]
 
-    result = await qa_service.answer(request.question, doc_ids, user_id=str(current_user.id))
+    history = [{"role": m.role, "content": m.content} for m in (request.history or [])]
+    result = await qa_service.answer(request.question, doc_ids, user_id=str(current_user.id), db=db, history=history)
     return result

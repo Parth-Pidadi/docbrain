@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
-import { askQuestion } from '../api/client';
+import { askQuestion, getDocuments } from '../api/client';
 import toast from 'react-hot-toast';
 import Layout from '../components/Layout';
 import './QA.css';
@@ -7,9 +7,18 @@ import './QA.css';
 const SUGGESTIONS = [
   'What was my total spending last month?',
   'List all vendors I have invoices from',
-  'What are the payment terms in my contracts?',
+  'What are the red flags in my contracts?',
   'Summarize my recent bank transactions',
+  'What items did I purchase?',
+  'Analyze my contract for risky clauses',
+  'Are there any auto-renewal clauses I should know about?',
+  'What are my obligations under this contract?',
 ];
+
+const DOC_ICONS = {
+  invoice: '🧾', receipt: '🏷️', bank_statement: '🏦',
+  contract: '📋', unknown: '📄',
+};
 
 function Message({ msg }) {
   const isUser = msg.role === 'user';
@@ -23,7 +32,7 @@ function Message({ msg }) {
             <p className="sources-label">Sources</p>
             {msg.sources.map((s, i) => (
               <div key={i} className="source-chip">
-                <span className="mono source-id">{s.doc_id?.slice(0,8)}…</span>
+                <span className="mono source-id">{s.doc_id?.slice(0, 8)}…</span>
                 <span className="source-score">{(s.score * 100).toFixed(0)}%</span>
                 <span className="source-chunk">{s.chunk?.slice(0, 80)}…</span>
               </div>
@@ -39,20 +48,51 @@ export default function QA() {
   const [messages, setMessages] = useState([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
+  const [docs, setDocs] = useState([]);
+  const [selectedDocs, setSelectedDocs] = useState([]); // empty = global
+  const [scopeOpen, setScopeOpen] = useState(false);
   const bottomRef = useRef(null);
+
+  useEffect(() => {
+    getDocuments()
+      .then(({ data }) => setDocs(data))
+      .catch(() => {});
+  }, []);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  const toggleDoc = (docId) => {
+    setSelectedDocs((prev) =>
+      prev.includes(docId) ? prev.filter((id) => id !== docId) : [...prev, docId]
+    );
+  };
+
+  const selectAll = () => setSelectedDocs([]);
+  const isGlobal = selectedDocs.length === 0;
+
+  const scopeLabel = isGlobal
+    ? 'All Documents'
+    : selectedDocs.length === 1
+    ? docs.find((d) => d.doc_id === selectedDocs[0])?.filename || '1 doc'
+    : `${selectedDocs.length} documents`;
+
   const send = async (question) => {
     const q = question || input.trim();
     if (!q) return;
     setInput('');
-    setMessages((m) => [...m, { role: 'user', content: q }]);
+    const updatedMessages = [...messages, { role: 'user', content: q }];
+    setMessages(updatedMessages);
     setLoading(true);
     try {
-      const { data } = await askQuestion(q);
+      const doc_ids = selectedDocs.length > 0 ? selectedDocs : null;
+      // Send last 6 messages as history (excluding the one we just added)
+      const history = messages.slice(-6).map((m) => ({
+        role: m.role === 'ai' ? 'assistant' : 'user',
+        content: m.content,
+      }));
+      const { data } = await askQuestion(q, doc_ids, history);
       setMessages((m) => [...m, { role: 'ai', content: data.answer, sources: data.sources }]);
     } catch (err) {
       toast.error('Failed to get answer');
@@ -70,8 +110,97 @@ export default function QA() {
     <Layout>
       <div className="qa-page fade-up">
         <div className="qa-header">
-          <h1>Ask Anything</h1>
-          <p>Query across all your documents in plain English</p>
+          <div className="qa-header-top">
+            <div>
+              <h1>Ask Anything</h1>
+              <p>Query your documents in plain English</p>
+            </div>
+
+            {/* Scope Selector */}
+            <div className="scope-wrapper">
+              <button
+                className={`scope-btn ${!isGlobal ? 'scope-btn--active' : ''}`}
+                onClick={() => setScopeOpen((o) => !o)}
+              >
+                <span className="scope-icon">{isGlobal ? '◎' : '◉'}</span>
+                <span className="scope-label">{scopeLabel}</span>
+                <span className="scope-arrow">{scopeOpen ? '▴' : '▾'}</span>
+              </button>
+
+              {scopeOpen && (
+                <div className="scope-dropdown">
+                  <div className="scope-dropdown-header">
+                    <span>Select documents to query</span>
+                    <button className="scope-clear" onClick={selectAll}>
+                      {isGlobal ? 'All selected' : 'Clear selection'}
+                    </button>
+                  </div>
+
+                  {/* Global option */}
+                  <div
+                    className={`scope-item ${isGlobal ? 'scope-item--active' : ''}`}
+                    onClick={selectAll}
+                  >
+                    <div className="scope-item-icon">◎</div>
+                    <div className="scope-item-info">
+                      <p className="scope-item-name">All Documents</p>
+                      <p className="scope-item-meta">Query across everything</p>
+                    </div>
+                    {isGlobal && <span className="scope-check">✓</span>}
+                  </div>
+
+                  {/* Divider */}
+                  {docs.length > 0 && <div className="scope-divider" />}
+
+                  {/* Individual docs */}
+                  {docs.map((doc) => {
+                    const selected = selectedDocs.includes(doc.doc_id);
+                    return (
+                      <div
+                        key={doc.doc_id}
+                        className={`scope-item ${selected ? 'scope-item--active' : ''} ${!doc.is_extracted ? 'scope-item--disabled' : ''}`}
+                        onClick={() => doc.is_extracted && toggleDoc(doc.doc_id)}
+                        title={!doc.is_extracted ? 'Extract this document first' : ''}
+                      >
+                        <div className="scope-item-icon">
+                          {DOC_ICONS[doc.doc_type] || '📄'}
+                        </div>
+                        <div className="scope-item-info">
+                          <p className="scope-item-name">{doc.filename}</p>
+                          <p className="scope-item-meta">
+                            {doc.doc_type
+                              ? doc.doc_type.replace('_', ' ')
+                              : 'not extracted yet'}
+                          </p>
+                        </div>
+                        {selected && <span className="scope-check">✓</span>}
+                        {!doc.is_extracted && <span className="scope-pending">pending</span>}
+                      </div>
+                    );
+                  })}
+
+                  {docs.length === 0 && (
+                    <p className="scope-empty">No documents uploaded yet</p>
+                  )}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Active scope pill */}
+          {!isGlobal && (
+            <div className="scope-active-pills">
+              {selectedDocs.map((id) => {
+                const doc = docs.find((d) => d.doc_id === id);
+                return (
+                  <span key={id} className="scope-pill">
+                    {DOC_ICONS[doc?.doc_type] || '📄'} {doc?.filename}
+                    <button onClick={() => toggleDoc(id)}>×</button>
+                  </span>
+                );
+              })}
+            </div>
+          )}
         </div>
 
         <div className="qa-chat">
@@ -79,7 +208,11 @@ export default function QA() {
             <div className="qa-welcome">
               <div className="qa-welcome-icon">◈</div>
               <h2>What would you like to know?</h2>
-              <p>Ask questions about your uploaded invoices, receipts, contracts, or bank statements.</p>
+              <p>
+                {isGlobal
+                  ? 'Querying across all your documents.'
+                  : `Querying ${selectedDocs.length} selected document${selectedDocs.length > 1 ? 's' : ''}.`}
+              </p>
               <div className="suggestions">
                 {SUGGESTIONS.map((s) => (
                   <button key={s} className="suggestion-chip" onClick={() => send(s)}>
@@ -111,7 +244,11 @@ export default function QA() {
         <div className="qa-input-row">
           <textarea
             className="qa-input"
-            placeholder="Ask about your documents…"
+            placeholder={
+              isGlobal
+                ? 'Ask about all your documents…'
+                : `Ask about ${scopeLabel}…`
+            }
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKey}
