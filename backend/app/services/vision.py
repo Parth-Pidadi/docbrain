@@ -78,17 +78,57 @@ def _local_pdf(path: Path) -> tuple[str, str]:
     return _tesseract_pdf(path), "tesseract_local"
 
 
+def _maybe_set_tessdata():
+    """Auto-detect tessdata path when running in Nix/Railway environment."""
+    import os
+    import glob as _glob
+
+    if os.environ.get("TESSDATA_PREFIX"):
+        return  # already set
+
+    # Search for tessdata in common Nix store paths
+    candidates = _glob.glob("/nix/store/*/share/tessdata") + _glob.glob("/usr/share/tesseract-ocr/*/tessdata")
+    if candidates:
+        os.environ["TESSDATA_PREFIX"] = candidates[0]
+
+
 def _tesseract_pdf(path: Path) -> str:
     from pdf2image import convert_from_path
     import pytesseract
 
+    _maybe_set_tessdata()
     pages = convert_from_path(str(path), dpi=300)
     return "\n".join(pytesseract.image_to_string(p) for p in pages).strip()
 
 
 def _local_image(path: Path) -> str:
     import pytesseract
-    from PIL import Image
+    from PIL import Image, ImageFilter, ImageEnhance
+
+    # Ensure Tesseract can find its language data when installed via Nix
+    _maybe_set_tessdata()
 
     img = Image.open(path).convert("RGB")
-    return pytesseract.image_to_string(img).strip()
+
+    # Upscale small images so Tesseract has enough DPI to work with
+    min_dim = 1400
+    w, h = img.size
+    if max(w, h) < min_dim:
+        scale = min_dim / max(w, h)
+        img = img.resize((int(w * scale), int(h * scale)), Image.LANCZOS)
+
+    # Convert to grayscale and boost contrast — greatly improves receipt OCR
+    img = img.convert("L")
+    img = ImageEnhance.Contrast(img).enhance(2.0)
+    img = ImageEnhance.Sharpness(img).enhance(2.0)
+
+    # Try with Tesseract page segmentation mode 6 (uniform block of text)
+    config = "--psm 6 --oem 3"
+    text = pytesseract.image_to_string(img, config=config).strip()
+
+    # If still empty, retry with psm 4 (single column of text)
+    if not text:
+        config = "--psm 4 --oem 3"
+        text = pytesseract.image_to_string(img, config=config).strip()
+
+    return text

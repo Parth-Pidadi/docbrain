@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { uploadDocument, extractDocument, getInsightsSummary } from '../api/client';
+import { uploadDocument, extractDocument, getInsightsSummary, getDocuments } from '../api/client';
 import toast from 'react-hot-toast';
 import Layout from '../components/Layout';
 import './Dashboard.css';
@@ -59,6 +59,10 @@ export default function Dashboard() {
   const navigate = useNavigate();
 
   useEffect(() => {
+    // Load existing documents from the database
+    getDocuments()
+      .then((r) => setDocs(r.data))
+      .catch(() => {});
     getInsightsSummary()
       .then((r) => setSummary(r.data))
       .catch(() => {});

@@ -27,7 +27,21 @@ async def extract_document(
     # Step 1: OCR / parse the document
     raw_text, donut_json, parse_method = await vision.parse(doc_id)
     if not raw_text:
-        raise HTTPException(status_code=422, detail="Could not extract text from document.")
+        # File found but OCR returned nothing — give a clear reason
+        if parse_method == "not_found":
+            raise HTTPException(
+                status_code=404,
+                detail="Uploaded file not found on server. Please re-upload the document.",
+            )
+        raise HTTPException(
+            status_code=422,
+            detail=(
+                "OCR could not extract any text from this image. "
+                "Try uploading a higher-quality scan (300 DPI+, good lighting, flat surface). "
+                "PDF documents with embedded text work best. "
+                f"Parse method attempted: {parse_method}"
+            ),
+        )
 
     # Step 2: Classify document type
     doc_type = await classifier.classify(raw_text)
