@@ -10,6 +10,8 @@ python-dotenv==1.0.1
 # PDF parsing (lightweight, text-based PDFs only — OCR handled by Colab)
 pdfplumber==0.11.0
 Pillow==10.3.0
+pytesseract==0.3.10
+pdf2image==1.17.0
 
 # LLM - Groq
 groq==0.11.0
