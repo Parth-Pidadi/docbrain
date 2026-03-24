@@ -53,18 +53,32 @@ async def extract_document(
     if donut_json and isinstance(donut_json, dict):
         extracted_fields["_donut_raw"] = donut_json
 
-    # Step 4: Embed and store in ChromaDB (scoped to this user)
-    await embedder.embed_and_store(doc_id, raw_text, user_id=str(current_user.id))
+    # Step 4: Embed and store in ChromaDB — best-effort, never blocks extraction
+    embedding_note = None
+    try:
+        await embedder.embed_and_store(doc_id, raw_text, user_id=str(current_user.id))
+    except Exception as emb_err:
+        # Colab is offline or sentence-transformers not installed.
+        # Extraction + SQL insights still work; only RAG Q&A is degraded.
+        embedding_note = f"Embedding skipped (Colab offline): {str(emb_err)[:120]}"
+        print(f"[extract] WARNING: {embedding_note}")
 
     # Step 5: Persist extraction results to PostgreSQL
     doc.doc_type = doc_type.value
     doc.extracted_fields = extracted_fields
     db.commit()
 
-    return ExtractionResult(
+    result = ExtractionResult(
         doc_id=doc_id,
         doc_type=doc_type,
         extracted_fields=extracted_fields,
         raw_text=raw_text,
         parse_method=parse_method,
     )
+    # Surface embedding warning to caller without failing
+    if embedding_note:
+        result.extracted_fields["_embedding_warning"] = (
+            "Colab GPU server was offline — semantic Q&A may be limited. "
+            "SQL-based insights and structured queries still work normally."
+        )
+    return result
