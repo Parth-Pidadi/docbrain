@@ -666,6 +666,14 @@ async def answer(
             tool_result = _exec_analyze_contract(tool_args, user_id, db)
         elif tool_name == "get_receipt_items" and db:
             tool_result = _exec_get_receipt_items(tool_args, user_id, db)
+            # If no structured items found, fall back to RAG search
+            if tool_result.get("item_count", 0) == 0:
+                rag_result = await _exec_search_documents(
+                    {"query": "items purchased products line items description"},
+                    doc_ids or [], user_id
+                )
+                if rag_result.get("chunks"):
+                    tool_result = {"item_count": 0, "items": [], "rag_context": rag_result["chunks"]}
         elif tool_name == "search_documents":
             tool_result = await _exec_search_documents(tool_args, doc_ids or [], user_id)
             for c in tool_result.get("chunks", []):
