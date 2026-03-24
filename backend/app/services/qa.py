@@ -10,7 +10,7 @@ from __future__ import annotations
 import json
 from typing import Optional
 
-import groq
+from openai import OpenAI, BadRequestError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -24,7 +24,10 @@ _client = None
 def _get_client():
     global _client
     if _client is None:
-        _client = groq.Groq(api_key=settings.GROQ_API_KEY)
+        _client = OpenAI(
+            api_key=settings.GEMINI_API_KEY,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        )
     return _client
 
 
@@ -577,24 +580,21 @@ async def answer(
     # On that error, retry once without tools so the user always gets an answer.
     try:
         response = client.chat.completions.create(
-            model=settings.GROQ_MODEL,
+            model=settings.GEMINI_MODEL,
             messages=messages,
             tools=TOOLS,
             tool_choice="auto",
             max_tokens=1024,
             temperature=0.1,
         )
-    except groq.BadRequestError as e:
-        if "tool_use_failed" in str(e):
-            print(f"[qa] tool_use_failed from Groq, retrying without tools: {e}")
-            response = client.chat.completions.create(
-                model=settings.GROQ_MODEL,
-                messages=messages,
-                max_tokens=1024,
-                temperature=0.1,
-            )
-        else:
-            raise
+    except BadRequestError as e:
+        print(f"[qa] BadRequestError, retrying without tools: {e}")
+        response = client.chat.completions.create(
+            model=settings.GEMINI_MODEL,
+            messages=messages,
+            max_tokens=1024,
+            temperature=0.1,
+        )
 
     message = response.choices[0].message
     sources = []
@@ -637,14 +637,13 @@ async def answer(
 
         try:
             final = client.chat.completions.create(
-                model=settings.GROQ_MODEL,
+                model=settings.GEMINI_MODEL,
                 messages=messages,
                 max_tokens=512,
                 temperature=0.1,
             )
             answer_text = final.choices[0].message.content or ""
-        except groq.BadRequestError:
-            # Final synthesis failed — return raw tool result as plain text
+        except BadRequestError:
             answer_text = json.dumps(tool_result, indent=2)
 
     else:
@@ -657,4 +656,4 @@ async def answer(
     answer_text = _re.sub(r'<\|[^|]+\|>', '', answer_text)
     answer_text = answer_text.strip() or "I couldn't find an answer based on your documents."
 
-    return QAResponse(answer=answer_text, sources=sources, model=settings.GROQ_MODEL)
+    return QAResponse(answer=answer_text, sources=sources, model=settings.GEMINI_MODEL)

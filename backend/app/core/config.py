@@ -20,9 +20,9 @@ class Settings(BaseSettings):
     # Vercel preview deployments all match *.vercel.app — allow them via regex
     ALLOWED_ORIGIN_REGEX: str = r"https://.*\.vercel\.app"
 
-    # Groq
-    GROQ_API_KEY: str = ""
-    GROQ_MODEL: str = "llama-3.3-70b-versatile"
+    # Gemini
+    GEMINI_API_KEY: str = ""
+    GEMINI_MODEL: str = "gemini-2.0-flash"
 
     # Database (PostgreSQL)
     DATABASE_URL: str = "postgresql://docbrain:docbrain@localhost:5432/docbrain"

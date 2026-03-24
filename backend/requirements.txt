@@ -13,8 +13,8 @@ Pillow==10.3.0
 pytesseract==0.3.10
 pdf2image==1.17.0
 
-# LLM - Groq
-groq==0.11.0
+# LLM - Google Gemini (via OpenAI-compatible endpoint)
+openai>=1.30.0
 
 # Vector store (no sentence-transformers — Colab handles all embeddings)
 chromadb==0.5.3

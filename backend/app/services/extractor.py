@@ -1,11 +1,11 @@
 """
-Structured Extractor: uses Groq LLM to pull key-value fields from documents.
+Structured Extractor: uses Gemini to pull key-value fields from documents.
 Returns a dict of extracted fields as JSON.
 """
 import json
+from openai import OpenAI
 from app.models.schemas import DocType
 from app.core.config import settings
-import groq
 
 _client = None
 
@@ -13,7 +13,10 @@ _client = None
 def _get_client():
     global _client
     if _client is None:
-        _client = groq.Groq(api_key=settings.GROQ_API_KEY)
+        _client = OpenAI(
+            api_key=settings.GEMINI_API_KEY,
+            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        )
     return _client
 
 
@@ -59,7 +62,7 @@ async def extract(raw_text: str, doc_type: DocType) -> dict:
     prompt = EXTRACTION_PROMPTS[doc_type]
 
     response = client.chat.completions.create(
-        model=settings.GROQ_MODEL,
+        model=settings.GEMINI_MODEL,
         messages=[
             {"role": "system", "content": EXTRACTION_SYSTEM},
             {"role": "user", "content": f"{prompt}\n\nDocument text:\n{raw_text[:4000]}"},
@@ -79,7 +82,6 @@ async def extract(raw_text: str, doc_type: DocType) -> dict:
     try:
         return json.loads(content)
     except json.JSONDecodeError:
-        # Try extracting JSON object from mixed content
         import re
         match = re.search(r'\{.*\}', content, re.DOTALL)
         if match:
