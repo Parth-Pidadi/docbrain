@@ -24,12 +24,27 @@ vendor_name, invoice_number, invoice_date, due_date, total_amount, currency, lin
     DocType.receipt: """Extract these fields from the receipt (return valid JSON only):
 merchant_name, date, total_amount, currency, items (array of {name, price}), payment_method, tax_amount.
 
-Important extraction rules:
+The input may be plain OCR text OR structured Donut CORD JSON. Handle both:
+
+CORD JSON format example:
+{"menu": [{"nm": "ITEM NAME", "price": "3.74"}, {"nm": "ITEM 2", "unitprice": "1.00", "cnt": "2", "price": "2.00"}],
+ "sub_total": {"subtotal_price": "5.74"}, "tax": {"tax_price": "0.46"}, "total": {"total_price": "6.20"},
+ "store_name": "Walmart"}
+
+If CORD JSON:
+- merchant_name → store_name or first store identifier
+- items → menu[].nm as name, menu[].price as price
+- total_amount → total.total_price or total.cashprice
+- tax_amount → tax.tax_price
+- date → look for date field or any date pattern
+
+If plain OCR text:
 - total_amount: look for TOTAL, TOT, TOTAL PURCHASE, AMOUNT DUE — return as a number like 3.74
-- merchant_name: look for the store name at the top (e.g. Walmart, Target, CVS)
-- date: look for date patterns like MM/DD/YY anywhere in the text
-- If OCR text looks garbled, still try to extract numbers that appear after TOTAL or AMOUNT
-- Return null for fields you cannot find, never skip total_amount if any dollar amount is visible""",
+- merchant_name: store name at the top (e.g. Walmart, Target, CVS)
+- date: look for MM/DD/YY or any date pattern
+- If garbled, still extract numbers after TOTAL or AMOUNT
+
+Return null for fields you cannot find. Never skip total_amount if any dollar amount is visible.""",
 
     DocType.bank_statement: """Extract these fields from the bank statement (return valid JSON only):
 bank_name, account_holder, account_number, statement_period_start, statement_period_end, opening_balance, closing_balance, transactions (array of {date, description, debit, credit, balance})""",
