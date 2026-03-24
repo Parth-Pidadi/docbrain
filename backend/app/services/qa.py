@@ -589,7 +589,11 @@ async def answer(
     if message.tool_calls:
         tool_call = message.tool_calls[0]
         tool_name = tool_call.function.name
-        tool_args = json.loads(tool_call.function.arguments)
+        # Guard: arguments may be empty string or "null" → default to {}
+        try:
+            tool_args = json.loads(tool_call.function.arguments) or {}
+        except (json.JSONDecodeError, TypeError):
+            tool_args = {}
 
         if tool_name == "get_spending" and db:
             tool_result = _exec_get_spending(tool_args, user_id, db)
@@ -603,7 +607,6 @@ async def answer(
             tool_result = _exec_get_receipt_items(tool_args, user_id, db)
         elif tool_name == "search_documents":
             tool_result = await _exec_search_documents(tool_args, doc_ids or [], user_id)
-            # Build sources from chunks
             for c in tool_result.get("chunks", []):
                 sources.append(QASource(doc_id=c["doc_id"], filename=c["doc_id"],
                                         chunk=c["text"], score=c["score"]))
@@ -624,10 +627,16 @@ async def answer(
             max_tokens=512,
             temperature=0.1,
         )
-        answer_text = final.choices[0].message.content.strip()
+        answer_text = final.choices[0].message.content or ""
 
     else:
-        # LLaMA answered directly
-        answer_text = message.content.strip() if message.content else "I couldn't find an answer."
+        # LLaMA answered directly (no tool needed)
+        answer_text = message.content or "I couldn't find an answer."
+
+    # Strip any leaked tool-call XML/function syntax the LLM may have included
+    import re as _re
+    answer_text = _re.sub(r'<function=[^>]+>.*?</function>', '', answer_text, flags=_re.DOTALL)
+    answer_text = _re.sub(r'<\|[^|]+\|>', '', answer_text)
+    answer_text = answer_text.strip() or "I couldn't find an answer based on your documents."
 
     return QAResponse(answer=answer_text, sources=sources, model=settings.GROQ_MODEL)

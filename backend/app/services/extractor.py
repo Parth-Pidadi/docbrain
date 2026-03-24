@@ -22,7 +22,14 @@ EXTRACTION_PROMPTS = {
 vendor_name, invoice_number, invoice_date, due_date, total_amount, currency, line_items (array of {description, qty, unit_price, amount}), tax_amount, payment_terms""",
 
     DocType.receipt: """Extract these fields from the receipt (return valid JSON only):
-merchant_name, date, total_amount, currency, items (array of {name, price}), payment_method, tax_amount""",
+merchant_name, date, total_amount, currency, items (array of {name, price}), payment_method, tax_amount.
+
+Important extraction rules:
+- total_amount: look for TOTAL, TOT, TOTAL PURCHASE, AMOUNT DUE — return as a number like 3.74
+- merchant_name: look for the store name at the top (e.g. Walmart, Target, CVS)
+- date: look for date patterns like MM/DD/YY anywhere in the text
+- If OCR text looks garbled, still try to extract numbers that appear after TOTAL or AMOUNT
+- Return null for fields you cannot find, never skip total_amount if any dollar amount is visible""",
 
     DocType.bank_statement: """Extract these fields from the bank statement (return valid JSON only):
 bank_name, account_holder, account_number, statement_period_start, statement_period_end, opening_balance, closing_balance, transactions (array of {date, description, debit, credit, balance})""",
