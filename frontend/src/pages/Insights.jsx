@@ -54,7 +54,7 @@ export default function Insights() {
   };
 
   const pieData = Object.entries(summary?.by_type || {}).map(([name, value]) => ({ name: name.replace('_', ' '), value }));
-  const vendorData = vendors.slice(0, 8).map((v) => ({ name: v.vendor, value: v.total_spent }));
+  const vendorData = (spending?.vendor_breakdown || []).slice(0, 8).map((v) => ({ name: v.vendor, value: v.total }));
 
   return (
     <Layout>
