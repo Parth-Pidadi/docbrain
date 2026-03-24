@@ -576,6 +576,7 @@ async def answer(
     # Step 1: Ask LLaMA to pick a tool (retry up to 2 times on tool_use_failed)
     response = None
     tool_call_failed = False
+    sources = []
     for attempt in range(2):
         try:
             response = client.chat.completions.create(
@@ -644,7 +645,6 @@ async def answer(
         return QAResponse(answer=answer_text, sources=sources, model=settings.GROQ_MODEL)
 
     message = response.choices[0].message
-    sources = []
 
     # Step 2: Execute tool if called
     if message.tool_calls:
