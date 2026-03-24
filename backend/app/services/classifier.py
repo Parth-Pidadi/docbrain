@@ -1,9 +1,9 @@
 """
-Document Classifier: uses Gemini to detect document type from raw text.
+Document Classifier: uses Groq LLM to detect document type from raw text.
 """
 from app.models.schemas import DocType
 from app.core.config import settings
-from openai import OpenAI
+import groq
 
 _client = None
 
@@ -11,10 +11,7 @@ _client = None
 def _get_client():
     global _client
     if _client is None:
-        _client = OpenAI(
-            api_key=settings.GEMINI_API_KEY,
-            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-        )
+        _client = groq.Groq(api_key=settings.GROQ_API_KEY)
     return _client
 
 
@@ -38,7 +35,7 @@ async def classify(raw_text: str) -> DocType:
     client = _get_client()
 
     response = client.chat.completions.create(
-        model=settings.GEMINI_MODEL,
+        model=settings.GROQ_MODEL,
         messages=[{"role": "user", "content": CLASSIFY_PROMPT.format(text=snippet)}],
         max_tokens=10,
         temperature=0,

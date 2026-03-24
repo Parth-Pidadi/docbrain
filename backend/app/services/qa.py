@@ -10,7 +10,8 @@ from __future__ import annotations
 import json
 from typing import Optional
 
-from openai import OpenAI, BadRequestError
+import groq
+from groq import BadRequestError
 from sqlalchemy.orm import Session
 
 from app.core.config import settings
@@ -24,10 +25,7 @@ _client = None
 def _get_client():
     global _client
     if _client is None:
-        _client = OpenAI(
-            api_key=settings.GEMINI_API_KEY,
-            base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-        )
+        _client = groq.Groq(api_key=settings.GROQ_API_KEY)
     return _client
 
 
@@ -580,7 +578,7 @@ async def answer(
     # On that error, retry once without tools so the user always gets an answer.
     try:
         response = client.chat.completions.create(
-            model=settings.GEMINI_MODEL,
+            model=settings.GROQ_MODEL,
             messages=messages,
             tools=TOOLS,
             tool_choice="auto",
@@ -590,7 +588,7 @@ async def answer(
     except BadRequestError as e:
         print(f"[qa] BadRequestError, retrying without tools: {e}")
         response = client.chat.completions.create(
-            model=settings.GEMINI_MODEL,
+            model=settings.GROQ_MODEL,
             messages=messages,
             max_tokens=1024,
             temperature=0.1,
@@ -637,7 +635,7 @@ async def answer(
 
         try:
             final = client.chat.completions.create(
-                model=settings.GEMINI_MODEL,
+                model=settings.GROQ_MODEL,
                 messages=messages,
                 max_tokens=512,
                 temperature=0.1,
@@ -656,4 +654,4 @@ async def answer(
     answer_text = _re.sub(r'<\|[^|]+\|>', '', answer_text)
     answer_text = answer_text.strip() or "I couldn't find an answer based on your documents."
 
-    return QAResponse(answer=answer_text, sources=sources, model=settings.GEMINI_MODEL)
+    return QAResponse(answer=answer_text, sources=sources, model=settings.GROQ_MODEL)
