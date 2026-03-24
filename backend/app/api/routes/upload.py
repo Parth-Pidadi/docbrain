@@ -1,3 +1,4 @@
+import hashlib
 import uuid
 import shutil
 from pathlib import Path
@@ -52,12 +53,37 @@ async def upload_document(
             detail=f"File type '.{ext}' not supported. Allowed: {settings.ALLOWED_EXTENSIONS}",
         )
 
+    # Read file bytes once — used for both hashing and saving
+    file_bytes = await file.read()
+
+    # Check file size
+    max_bytes = settings.MAX_FILE_SIZE_MB * 1024 * 1024
+    if len(file_bytes) > max_bytes:
+        raise HTTPException(
+            status_code=400,
+            detail=f"File too large. Maximum size is {settings.MAX_FILE_SIZE_MB} MB.",
+        )
+
+    # SHA-256 content hash — same file bytes = same hash
+    file_hash = hashlib.sha256(file_bytes).hexdigest()
+
+    # Reject if this exact file was already uploaded by this user
+    existing = db.query(Document).filter(
+        Document.user_id == current_user.id,
+        Document.file_hash == file_hash,
+    ).first()
+    if existing:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Duplicate file: '{existing.filename}' has identical content. Delete it first if you want to re-upload.",
+        )
+
     doc_id = str(uuid.uuid4())
     upload_path = Path(settings.UPLOAD_DIR) / f"{doc_id}.{ext}"
     upload_path.parent.mkdir(parents=True, exist_ok=True)
 
     with open(upload_path, "wb") as f:
-        shutil.copyfileobj(file.file, f)
+        f.write(file_bytes)
 
     # Persist document metadata tied to the current user
     doc = Document(
@@ -65,6 +91,7 @@ async def upload_document(
         user_id=current_user.id,
         filename=file.filename,
         file_type=ext,
+        file_hash=file_hash,
     )
     db.add(doc)
     db.commit()

@@ -3,10 +3,12 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import auth, extract, insights, qa, upload
 from app.core.config import settings
-from app.core.database import Base, engine
+from app.core.database import Base, engine, run_migrations
 
 # Create all DB tables on startup (users, documents)
 Base.metadata.create_all(bind=engine)
+# Apply additive migrations (e.g. new columns on existing tables)
+run_migrations()
 
 app = FastAPI(
     title="DocBrain API",

@@ -27,6 +27,7 @@ class Document(Base):
     user_id = Column(UUID(as_uuid=True), ForeignKey("users.id"), nullable=False, index=True)
     filename = Column(String, nullable=False)
     file_type = Column(String, nullable=False)
+    file_hash = Column(String, nullable=True, index=True)  # SHA-256 of file bytes
     doc_type = Column(String, nullable=True)       # set after extraction
     extracted_fields = Column(JSON, nullable=True) # set after extraction
     created_at = Column(DateTime, default=datetime.utcnow)
