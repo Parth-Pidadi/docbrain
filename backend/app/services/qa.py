@@ -573,26 +573,75 @@ async def answer(
 
     messages.append({"role": "user", "content": question})
 
-    # Step 1: Ask LLaMA to pick a tool
-    # Groq occasionally fails to generate valid tool-call JSON (tool_use_failed).
-    # On that error, retry once without tools so the user always gets an answer.
-    try:
-        response = client.chat.completions.create(
-            model=settings.GROQ_MODEL,
-            messages=messages,
-            tools=TOOLS,
-            tool_choice="auto",
-            max_tokens=1024,
-            temperature=0.1,
-        )
-    except BadRequestError as e:
-        print(f"[qa] BadRequestError, retrying without tools: {e}")
-        response = client.chat.completions.create(
-            model=settings.GROQ_MODEL,
-            messages=messages,
-            max_tokens=1024,
-            temperature=0.1,
-        )
+    # Step 1: Ask LLaMA to pick a tool (retry up to 2 times on tool_use_failed)
+    response = None
+    tool_call_failed = False
+    for attempt in range(2):
+        try:
+            response = client.chat.completions.create(
+                model=settings.GROQ_MODEL,
+                messages=messages,
+                tools=TOOLS,
+                tool_choice="auto",
+                max_tokens=1024,
+                temperature=0.1,
+            )
+            break
+        except BadRequestError as e:
+            print(f"[qa] BadRequestError attempt {attempt+1}: {e}")
+            if attempt == 1:
+                tool_call_failed = True
+
+    # If both attempts failed, fall back: pick tool ourselves based on keywords
+    if tool_call_failed or response is None:
+        q_lower = question.lower()
+        if any(w in q_lower for w in ["spend", "spent", "cost", "total", "amount", "paid", "expense"]):
+            chosen_tool, chosen_args = "get_spending", {}
+        elif any(w in q_lower for w in ["vendor", "merchant", "supplier", "who"]):
+            chosen_tool, chosen_args = "get_vendors", {}
+        elif any(w in q_lower for w in ["transaction", "bank", "debit", "credit", "withdrawal"]):
+            chosen_tool, chosen_args = "get_transactions", {}
+        elif any(w in q_lower for w in ["item", "product", "bought", "purchased", "receipt"]):
+            chosen_tool, chosen_args = "get_receipt_items", {}
+        elif any(w in q_lower for w in ["contract", "clause", "risk", "flag", "obligation", "legal"]):
+            chosen_tool, chosen_args = "analyze_contract", {}
+        else:
+            chosen_tool, chosen_args = "search_documents", {"query": question}
+
+        # Execute chosen tool directly and synthesize answer
+        if chosen_tool == "get_spending" and db:
+            tool_result = _exec_get_spending(chosen_args, user_id, db)
+        elif chosen_tool == "get_vendors" and db:
+            tool_result = _exec_get_vendors(user_id, db)
+        elif chosen_tool == "get_transactions" and db:
+            tool_result = _exec_get_transactions(chosen_args, user_id, db)
+        elif chosen_tool == "analyze_contract" and db:
+            tool_result = _exec_analyze_contract(chosen_args, user_id, db)
+        elif chosen_tool == "get_receipt_items" and db:
+            tool_result = _exec_get_receipt_items(chosen_args, user_id, db)
+        else:
+            tool_result = await _exec_search_documents(chosen_args, doc_ids or [], user_id)
+
+        synth_messages = [
+            {"role": "system", "content": ROUTER_SYSTEM},
+            {"role": "user", "content": question},
+            {"role": "user", "content": f"Data from {chosen_tool}: {json.dumps(tool_result)}. Answer the user's question concisely using this data."},
+        ]
+        try:
+            fallback_resp = client.chat.completions.create(
+                model=settings.GROQ_MODEL,
+                messages=synth_messages,
+                max_tokens=512,
+                temperature=0.1,
+            )
+            answer_text = fallback_resp.choices[0].message.content or json.dumps(tool_result, indent=2)
+        except Exception:
+            answer_text = json.dumps(tool_result, indent=2)
+
+        import re as _re
+        answer_text = _re.sub(r'<function=[^>]+>.*?</function>', '', answer_text, flags=_re.DOTALL)
+        answer_text = answer_text.strip() or "I couldn't find an answer based on your documents."
+        return QAResponse(answer=answer_text, sources=sources, model=settings.GROQ_MODEL)
 
     message = response.choices[0].message
     sources = []
