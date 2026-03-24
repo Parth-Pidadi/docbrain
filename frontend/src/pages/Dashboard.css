@@ -172,6 +172,14 @@
 .doc-action-btn:hover { background: var(--bg-4); color: var(--text); }
 .doc-action-delete:hover { background: #fee2e2; border-color: #fca5a5; color: #dc2626; }
 
+/* Embedding warning on card */
+.embedding-warn {
+  font-size: 0.68rem; color: #b45309;
+  background: #fef3c7; border: 1px solid #fde68a;
+  border-radius: 4px; padding: 3px 7px; margin-top: 6px;
+  line-height: 1.4;
+}
+
 /* Inline rename input */
 .doc-rename-input {
   width: 100%; font-size: 0.84rem; font-weight: 600;

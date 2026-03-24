@@ -47,6 +47,13 @@ function DocCard({ doc, onExtract, onRename, onDelete }) {
         </span>
         {/* Actions */}
         <div className="doc-actions">
+          {isExtracted && (
+            <button
+              className="doc-action-btn"
+              title="Re-extract (refreshes embeddings)"
+              onClick={() => onExtract(doc)}
+            >↺</button>
+          )}
           <button
             className="doc-action-btn"
             title="Rename"
@@ -87,6 +94,9 @@ function DocCard({ doc, onExtract, onRename, onDelete }) {
         >
           Extract →
         </button>
+      )}
+      {isExtracted && doc.extracted_fields?._embedding_warning && (
+        <p className="embedding-warn">⚠ Colab was offline — hover &amp; click ↺ to re-extract with embeddings</p>
       )}
       {isExtracted && (
         <div className="doc-fields-preview">
