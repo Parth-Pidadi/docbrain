@@ -134,6 +134,18 @@ def _normalize_date(date_str: str) -> str:
     return date_str  # return as-is if nothing matched
 
 
+def _doc_fingerprint(fields: dict, amount) -> str:
+    """Stable fingerprint to detect duplicate documents by financial content."""
+    parts = [
+        str(fields.get("account_number", "")),
+        str(fields.get("invoice_number", "")),
+        str(amount or ""),
+        str(fields.get("statement_period_start", "") or fields.get("date", "") or fields.get("invoice_date", "")),
+        str(fields.get("closing_balance", "") or fields.get("total_amount", "")),
+    ]
+    return "|".join(parts)
+
+
 def _extract_amount(fields: dict) -> Optional[float]:
     """Extract total amount handling flat fields and Donut CORD nested format."""
     # Standard fields
@@ -200,12 +212,20 @@ def get_spending(
     docs = _user_docs(db, current_user, doc_type=doc_type or None).all()
 
     records = []
+    seen_fps: set = set()
     for doc in docs:
         fields = doc.extracted_fields or {}
 
         amount = _extract_amount(fields)
         if amount is None:
             continue
+
+        # Skip duplicate documents (same financial content, different filename)
+        fp = _doc_fingerprint(fields, amount)
+        if fp.replace("|", "").strip():
+            if fp in seen_fps:
+                continue
+            seen_fps.add(fp)
 
         raw_date = (
             fields.get("invoice_date")
@@ -311,6 +331,7 @@ def get_transactions(
     docs = _user_docs(db, current_user, doc_type="bank_statement").all()
 
     all_transactions = []
+    seen_txns: set = set()
     for doc in docs:
         fields = doc.extracted_fields or {}
         transactions = fields.get("transactions", [])
@@ -320,6 +341,15 @@ def get_transactions(
             date = txn.get("date", "")
             if month and not str(date).startswith(month):
                 continue
+            txn_key = (
+                date,
+                str(txn.get("description", "")).strip().lower(),
+                str(txn.get("debit", "")),
+                str(txn.get("credit", "")),
+            )
+            if txn_key in seen_txns:
+                continue
+            seen_txns.add(txn_key)
             all_transactions.append({
                 "doc_id": doc.id,
                 "filename": doc.filename,

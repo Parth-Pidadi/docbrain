@@ -280,6 +280,34 @@ def _extract_amount(fields: dict) -> Optional[float]:
     return None
 
 
+def _doc_fingerprint(fields: dict) -> str:
+    """Create a content fingerprint to detect duplicate documents."""
+    # Use stable financial identifiers as fingerprint
+    parts = [
+        str(fields.get("account_number", "")),
+        str(fields.get("invoice_number", "")),
+        str(_extract_amount(fields) or ""),
+        str(fields.get("statement_period_start", "") or fields.get("date", "") or fields.get("invoice_date", "")),
+        str(fields.get("closing_balance", "") or fields.get("total_amount", "")),
+    ]
+    return "|".join(parts)
+
+
+def _dedup_docs(docs) -> list:
+    """Remove duplicate documents by content fingerprint, keeping the first seen."""
+    seen, unique = set(), []
+    for doc in docs:
+        fields = doc.extracted_fields or {}
+        fp = _doc_fingerprint(fields)
+        # Only deduplicate if fingerprint has actual content (not all empty)
+        if fp.replace("|", "").strip() and fp in seen:
+            continue
+        if fp.replace("|", "").strip():
+            seen.add(fp)
+        unique.append(doc)
+    return unique
+
+
 def _exec_get_spending(args: dict, user_id: str, db: Session) -> dict:
     month = args.get("month")
     vendor_filter = args.get("vendor")
@@ -291,7 +319,7 @@ def _exec_get_spending(args: dict, user_id: str, db: Session) -> dict:
     )
     if doc_type:
         q = q.filter(Document.doc_type == doc_type)
-    docs = q.all()
+    docs = _dedup_docs(q.all())
 
     records = []
     for doc in docs:
@@ -330,10 +358,10 @@ def _exec_get_spending(args: dict, user_id: str, db: Session) -> dict:
 
 
 def _exec_get_vendors(user_id: str, db: Session) -> dict:
-    docs = db.query(Document).filter(
+    docs = _dedup_docs(db.query(Document).filter(
         Document.user_id == user_id,
         Document.extracted_fields.isnot(None),
-    ).all()
+    ).all())
 
     vendor_totals: dict = {}
     for doc in docs:
@@ -356,13 +384,14 @@ def _exec_get_vendors(user_id: str, db: Session) -> dict:
 
 def _exec_get_transactions(args: dict, user_id: str, db: Session) -> dict:
     month = args.get("month")
-    docs = db.query(Document).filter(
+    docs = _dedup_docs(db.query(Document).filter(
         Document.user_id == user_id,
         Document.doc_type == "bank_statement",
         Document.extracted_fields.isnot(None),
-    ).all()
+    ).all())
 
     transactions = []
+    seen_txns: set = set()
     for doc in docs:
         fields = doc.extracted_fields or {}
         txns = fields.get("transactions", [])
@@ -372,6 +401,16 @@ def _exec_get_transactions(args: dict, user_id: str, db: Session) -> dict:
             date = txn.get("date", "")
             if month and not str(date).startswith(month):
                 continue
+            # Deduplicate individual transactions by (date, description, debit, credit)
+            txn_key = (
+                date,
+                str(txn.get("description", "")).strip().lower(),
+                str(txn.get("debit", "")),
+                str(txn.get("credit", "")),
+            )
+            if txn_key in seen_txns:
+                continue
+            seen_txns.add(txn_key)
             transactions.append({
                 "date": date,
                 "description": txn.get("description", ""),
