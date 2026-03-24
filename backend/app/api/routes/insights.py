@@ -65,25 +65,73 @@ def _normalize_vendor(name: str, filename: str = "") -> str:
     return name
 
 
+_MONTH_NAMES = {
+    "jan": "01", "feb": "02", "mar": "03", "apr": "04",
+    "may": "05", "jun": "06", "jul": "07", "aug": "08",
+    "sep": "09", "oct": "10", "nov": "11", "dec": "12",
+    "january": "01", "february": "02", "march": "03", "april": "04",
+    "june": "06", "july": "07", "august": "08", "september": "09",
+    "october": "10", "november": "11", "december": "12",
+}
+
+
 def _normalize_date(date_str: str) -> str:
-    """Normalize various date formats to YYYY-MM-DD."""
+    """Normalize various date formats to YYYY-MM-DD.
+
+    Handles:
+      - Already ISO:        2024-03-05            → 2024-03-05
+      - US slash:           03/05/2024 or 3/5/24  → 2024-03-05
+      - EU dash:            05-03-2024            → 2024-03-05
+      - Month name long:    March 5, 2024         → 2024-03-05
+      - Month name short:   05 Mar 2024           → 2024-03-05
+      - Slash month name:   2024/March/05         → 2024-03-05
+    """
     import re
     if not date_str:
         return ""
     date_str = str(date_str).strip()
-    if re.match(r'\d{4}-\d{2}', date_str):
-        return date_str
-    m = re.match(r'(\d{1,2})/(\d{1,2})/(\d{2,4})', date_str)
+
+    # Already ISO or ISO-month prefix (2024-03...)
+    if re.match(r'^\d{4}-\d{2}', date_str):
+        return date_str[:10]
+
+    # US slash: MM/DD/YYYY or MM/DD/YY
+    m = re.match(r'^(\d{1,2})/(\d{1,2})/(\d{2,4})$', date_str)
     if m:
         month, day, year = m.groups()
         if len(year) == 2:
             year = ('20' if int(year) < 50 else '19') + year
         return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
-    m = re.match(r'(\d{1,2})-(\d{1,2})-(\d{4})', date_str)
+
+    # EU dash: DD-MM-YYYY
+    m = re.match(r'^(\d{1,2})-(\d{1,2})-(\d{4})$', date_str)
     if m:
         day, month, year = m.groups()
         return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
-    return date_str
+
+    # "March 5, 2024" or "March 5 2024"
+    m = re.match(r'^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$', date_str)
+    if m:
+        mon_name, day, year = m.groups()
+        mon_num = _MONTH_NAMES.get(mon_name.lower())
+        if mon_num:
+            return f"{year}-{mon_num}-{day.zfill(2)}"
+
+    # "5 March 2024" or "05 Mar 2024"
+    m = re.match(r'^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$', date_str)
+    if m:
+        day, mon_name, year = m.groups()
+        mon_num = _MONTH_NAMES.get(mon_name.lower())
+        if mon_num:
+            return f"{year}-{mon_num}-{day.zfill(2)}"
+
+    # YYYY/MM/DD
+    m = re.match(r'^(\d{4})/(\d{1,2})/(\d{1,2})$', date_str)
+    if m:
+        year, month, day = m.groups()
+        return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+
+    return date_str  # return as-is if nothing matched
 
 
 def _extract_amount(fields: dict) -> Optional[float]:

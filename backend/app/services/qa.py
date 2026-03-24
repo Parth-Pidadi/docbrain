@@ -177,26 +177,49 @@ Use bullet points for lists of risks or obligations."""
 
 # ── Tool execution ─────────────────────────────────────────────────────────────
 
+_MONTH_NAMES = {
+    "jan": "01", "feb": "02", "mar": "03", "apr": "04",
+    "may": "05", "jun": "06", "jul": "07", "aug": "08",
+    "sep": "09", "oct": "10", "nov": "11", "dec": "12",
+    "january": "01", "february": "02", "march": "03", "april": "04",
+    "june": "06", "july": "07", "august": "08", "september": "09",
+    "october": "10", "november": "11", "december": "12",
+}
+
+
 def _normalize_date(date_str: str) -> str:
     """Normalize various date formats to YYYY-MM-DD for consistent filtering."""
     import re
     if not date_str:
         return ""
     date_str = str(date_str).strip()
-    # Already ISO format
-    if re.match(r'\d{4}-\d{2}', date_str):
-        return date_str
-    # MM/DD/YY or MM/DD/YYYY
-    m = re.match(r'(\d{1,2})/(\d{1,2})/(\d{2,4})', date_str)
+    if re.match(r'^\d{4}-\d{2}', date_str):
+        return date_str[:10]
+    m = re.match(r'^(\d{1,2})/(\d{1,2})/(\d{2,4})$', date_str)
     if m:
         month, day, year = m.groups()
         if len(year) == 2:
             year = ('20' if int(year) < 50 else '19') + year
         return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
-    # DD-MM-YYYY
-    m = re.match(r'(\d{1,2})-(\d{1,2})-(\d{4})', date_str)
+    m = re.match(r'^(\d{1,2})-(\d{1,2})-(\d{4})$', date_str)
     if m:
         day, month, year = m.groups()
+        return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
+    m = re.match(r'^([A-Za-z]+)\s+(\d{1,2}),?\s+(\d{4})$', date_str)
+    if m:
+        mon_name, day, year = m.groups()
+        mon_num = _MONTH_NAMES.get(mon_name.lower())
+        if mon_num:
+            return f"{year}-{mon_num}-{day.zfill(2)}"
+    m = re.match(r'^(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})$', date_str)
+    if m:
+        day, mon_name, year = m.groups()
+        mon_num = _MONTH_NAMES.get(mon_name.lower())
+        if mon_num:
+            return f"{year}-{mon_num}-{day.zfill(2)}"
+    m = re.match(r'^(\d{4})/(\d{1,2})/(\d{1,2})$', date_str)
+    if m:
+        year, month, day = m.groups()
         return f"{year}-{month.zfill(2)}-{day.zfill(2)}"
     return date_str
 
