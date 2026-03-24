@@ -573,14 +573,28 @@ async def answer(
     messages.append({"role": "user", "content": question})
 
     # Step 1: Ask LLaMA to pick a tool
-    response = client.chat.completions.create(
-        model=settings.GROQ_MODEL,
-        messages=messages,
-        tools=TOOLS,
-        tool_choice="auto",
-        max_tokens=1024,
-        temperature=0.1,
-    )
+    # Groq occasionally fails to generate valid tool-call JSON (tool_use_failed).
+    # On that error, retry once without tools so the user always gets an answer.
+    try:
+        response = client.chat.completions.create(
+            model=settings.GROQ_MODEL,
+            messages=messages,
+            tools=TOOLS,
+            tool_choice="auto",
+            max_tokens=1024,
+            temperature=0.1,
+        )
+    except groq.BadRequestError as e:
+        if "tool_use_failed" in str(e):
+            print(f"[qa] tool_use_failed from Groq, retrying without tools: {e}")
+            response = client.chat.completions.create(
+                model=settings.GROQ_MODEL,
+                messages=messages,
+                max_tokens=1024,
+                temperature=0.1,
+            )
+        else:
+            raise
 
     message = response.choices[0].message
     sources = []
@@ -621,13 +635,17 @@ async def answer(
             "content": json.dumps(tool_result),
         })
 
-        final = client.chat.completions.create(
-            model=settings.GROQ_MODEL,
-            messages=messages,
-            max_tokens=512,
-            temperature=0.1,
-        )
-        answer_text = final.choices[0].message.content or ""
+        try:
+            final = client.chat.completions.create(
+                model=settings.GROQ_MODEL,
+                messages=messages,
+                max_tokens=512,
+                temperature=0.1,
+            )
+            answer_text = final.choices[0].message.content or ""
+        except groq.BadRequestError:
+            # Final synthesis failed — return raw tool result as plain text
+            answer_text = json.dumps(tool_result, indent=2)
 
     else:
         # LLaMA answered directly (no tool needed)
