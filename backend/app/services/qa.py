@@ -54,8 +54,8 @@ TOOLS = [
                     },
                     "doc_type": {
                         "type": "string",
-                        "enum": ["invoice", "receipt", "bank_statement"],
-                        "description": "Filter by document type.",
+                        "enum": ["invoice", "receipt", "bank_statement", "all"],
+                        "description": "Filter by document type. Use 'all' or omit to include everything.",
                     },
                 },
             },
@@ -128,8 +128,8 @@ TOOLS = [
                 "properties": {
                     "doc_type": {
                         "type": "string",
-                        "enum": ["receipt", "invoice"],
-                        "description": "Filter by document type. Omit to search all.",
+                        "enum": ["receipt", "invoice", "all"],
+                        "description": "Filter by document type. Use 'all' or omit to search all.",
                     },
                 },
             },
@@ -309,10 +309,49 @@ def _dedup_docs(docs) -> list:
     return unique
 
 
+def _resolve_month(month_str: str) -> str:
+    """Convert relative month strings to YYYY-MM format."""
+    if not month_str:
+        return ""
+    from datetime import date
+    import re
+    s = month_str.strip().lower()
+    today = date.today()
+    if s in ("this month", "current month", "this month's"):
+        return today.strftime("%Y-%m")
+    if s in ("last month", "previous month"):
+        m = today.month - 1 or 12
+        y = today.year if today.month > 1 else today.year - 1
+        return f"{y}-{m:02d}"
+    # "march", "march 2026", "march 2024"
+    month_names = {
+        "january": "01", "february": "02", "march": "03", "april": "04",
+        "may": "05", "june": "06", "july": "07", "august": "08",
+        "september": "09", "october": "10", "november": "11", "december": "12",
+        "jan": "01", "feb": "02", "mar": "03", "apr": "04",
+        "jun": "06", "jul": "07", "aug": "08", "sep": "09",
+        "oct": "10", "nov": "11", "dec": "12",
+    }
+    m = re.match(r'^([a-z]+)\s*(\d{4})?$', s)
+    if m:
+        mon_name, year = m.groups()
+        mon_num = month_names.get(mon_name)
+        if mon_num:
+            y = year or str(today.year)
+            return f"{y}-{mon_num}"
+    # Already YYYY-MM
+    if re.match(r'^\d{4}-\d{2}', month_str):
+        return month_str[:7]
+    return month_str
+
+
 def _exec_get_spending(args: dict, user_id: str, db: Session) -> dict:
-    month = args.get("month")
+    month = _resolve_month(args.get("month", ""))
     vendor_filter = args.get("vendor")
     doc_type = args.get("doc_type")
+    # Treat "all" as no filter
+    if doc_type == "all":
+        doc_type = None
 
     q = db.query(Document).filter(
         Document.user_id == user_id,
@@ -384,7 +423,7 @@ def _exec_get_vendors(user_id: str, db: Session) -> dict:
 
 
 def _exec_get_transactions(args: dict, user_id: str, db: Session) -> dict:
-    month = args.get("month")
+    month = _resolve_month(args.get("month", ""))
     docs = _dedup_docs(db.query(Document).filter(
         Document.user_id == user_id,
         Document.doc_type == "bank_statement",
