@@ -7,7 +7,7 @@ class Settings(BaseSettings):
     APP_ENV: str = "development"
     SECRET_KEY: str = "change-me-in-production"
 
-    # CORS
+    # CORS — explicit origins
     ALLOWED_ORIGINS: List[str] = [
         "http://localhost:5173",
         "http://localhost:5174",
@@ -17,6 +17,8 @@ class Settings(BaseSettings):
         "https://docbrain-app.vercel.app",
         "https://trydocbrain.vercel.app",
     ]
+    # Vercel preview deployments all match *.vercel.app — allow them via regex
+    ALLOWED_ORIGIN_REGEX: str = r"https://.*\.vercel\.app"
 
     # Groq
     GROQ_API_KEY: str = ""
