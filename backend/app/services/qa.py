@@ -337,7 +337,12 @@ def _resolve_month(month_str: str) -> str:
         mon_name, year = m.groups()
         mon_num = month_names.get(mon_name)
         if mon_num:
-            y = year or str(today.year)
+            if year:
+                y = year
+            else:
+                # If the named month is in the future this year, use last year
+                # e.g. asking "march" in January 2027 → 2026-03
+                y = str(today.year) if int(mon_num) <= today.month else str(today.year - 1)
             return f"{y}-{mon_num}"
     # Already YYYY-MM
     if re.match(r'^\d{4}-\d{2}', month_str):
